@@ -9,9 +9,13 @@ public class MeshGenerator : MonoBehaviour
 
     Vector3[] vertices;
     int[] triangles;
+    Mesh[] meshes;
 
-    [Range(0,5)]
+    [Range(0, 5)]
     public float cellSize = 1;
+
+    [Range(0, 5)]
+    public float Y = 3;
 
     public Vector3 gridOffset;
 
@@ -25,7 +29,7 @@ public class MeshGenerator : MonoBehaviour
         mesh = GetComponent<MeshFilter>().mesh;
     }
 
-    private void Start()
+    private void Update()
     {
         CreateProceduralGrid();
         CreateMesh();
@@ -36,6 +40,10 @@ public class MeshGenerator : MonoBehaviour
         //set array sizes
         vertices = new Vector3[gSizeX * gSizeY * 4];
         triangles = new int[gSizeX * gSizeY * 6];
+        meshes = new Mesh[6];
+
+        //TODO: Hardcodes grid offset need to change
+        
         
         //set a tracker for vertices and triangles
         int v = 0;
@@ -49,6 +57,7 @@ public class MeshGenerator : MonoBehaviour
         {
             for (int y = 0; y < gSizeY; y++)
             {
+                gridOffset = new Vector3(-(gSizeX - 1) * 0.5f * cellSize, Random.value + Y, -(gSizeY - 1) * 0.5f * cellSize);
                 Vector3 cellOffset = new Vector3(x * cellSize, 0, y * cellSize);
 
                 vertices[v] = new Vector3(-vertexOffset, 0, -vertexOffset) + cellOffset + gridOffset;
@@ -66,9 +75,18 @@ public class MeshGenerator : MonoBehaviour
             }
         }
 
-        
-        
-        
+
+        //Creating one size of a sphere
+        float radius = 3;
+
+        for (int i = 0; i < vertices.Length; i++)
+        {
+            Vector3 middlePoint = new Vector3(0, 0, 0);
+
+            Vector3 dir = (vertices[i] - middlePoint);
+            dir.Normalize();
+            vertices[i] = dir * radius;
+        }
     }
 
     private void CreateMesh()
