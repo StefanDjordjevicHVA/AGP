@@ -41,7 +41,7 @@ public class GridGenerator : MonoBehaviour
                     float thisHeight = (float)height * Mathf.PerlinNoise((float)x / 16f * 1.5f + 0.001f, (float)z / 16f * 1.5f + 0.001f);
 
                     float point = 0;
-
+                    
                     if (y <= thisHeight - 0.5f) //if this, point is well in the ground
                         point = 0f;
                     else if (y > thisHeight + 0.5f) //if this, point is well in the sky
