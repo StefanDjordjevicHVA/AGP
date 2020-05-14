@@ -6,11 +6,13 @@ using UnityEngine;
 public class GridGenerator : MonoBehaviour
 {
     public bool smoothTerrain;
+    public bool flatShaded;
 
     List<Vector3> vertices = new List<Vector3>();
     List<int> triangles = new List<int>();
 
     MeshFilter mFilter;
+    MeshCollider mColl;
 
     float terrainSurface = 0.5f;
 
@@ -19,16 +21,14 @@ public class GridGenerator : MonoBehaviour
 
     float[,,] terrainMap;
 
-    int _configIndex = -1;
-
     private void Start()
     {
         mFilter = GetComponent<MeshFilter>();
+        mColl = GetComponent<MeshCollider>();
+        transform.tag = "Terrain";
         terrainMap = new float[width + 1, height + 1, width + 1];
-
         PopulateTerrainMap();
         CreateMeshData();
-        BuildMesh();
     }
     
     void PopulateTerrainMap()
@@ -62,6 +62,8 @@ public class GridGenerator : MonoBehaviour
                 }
             }
         }
+
+        BuildMesh();
     }
 
     int GetCubeConfiguration (float[] cube)
@@ -79,9 +81,38 @@ public class GridGenerator : MonoBehaviour
         return configurationIndex;
     }
 
+    public void PlaceTerrain (Vector3 pos)
+    {
+        Vector3Int v3Int = new Vector3Int(Mathf.CeilToInt(pos.x), Mathf.CeilToInt(pos.y), Mathf.CeilToInt(pos.z));
+        terrainMap[v3Int.x, v3Int.y, v3Int.z] = 0f;
+        CreateMeshData();
+    }
+
+    public void RemoveTerrain(Vector3 pos)
+    {
+        Vector3Int v3Int = new Vector3Int(Mathf.FloorToInt(pos.x), Mathf.FloorToInt(pos.y), Mathf.FloorToInt(pos.z));
+        terrainMap[v3Int.x, v3Int.y, v3Int.z] = 1f;
+        CreateMeshData();
+    }
+
     float SampleTerrain (Vector3Int point)
     {
         return terrainMap[point.x, point.y, point.z];
+    }
+
+    int VertForIndice (Vector3 v)
+    {
+        // Loop all the verticis currently in the list
+        for (int i = 0; i < vertices.Count; i++)
+        {
+            // If vert is found that matches a previous one use that
+            if (vertices[i] == v)
+                return i;
+        }
+
+        // if no match is found, add vert to list
+        vertices.Add(v);
+        return vertices.Count - 1;
     }
 
     void MarchCube(Vector3Int position)
@@ -141,12 +172,18 @@ public class GridGenerator : MonoBehaviour
                 } else
                 {
                     //Set vertex position for triangle
-                    vPos = (v1 + v2) * 0.5f;
+                    vPos = (v1 + v2) / 2f;
                 }
-                
+
                 //Add vertex pos and triangle to Lists
-                vertices.Add(vPos);
-                triangles.Add(vertices.Count - 1);
+                if (flatShaded)
+                {
+                    vertices.Add(vPos);
+                    triangles.Add(vertices.Count - 1);
+                }
+                else
+                    triangles.Add(VertForIndice(vPos));
+                
                 edgeIndex++;
             }
         }
@@ -165,10 +202,11 @@ public class GridGenerator : MonoBehaviour
         mesh.triangles = triangles.ToArray();
         mesh.RecalculateNormals();
         mFilter.mesh = mesh;
+        mColl.sharedMesh = mesh;
     }
 
     // All the corners for a marching cube relative of cube position in world position
-    static readonly Vector3Int[] cornerTable = new Vector3Int[8]
+    Vector3Int[] cornerTable = new Vector3Int[8]
     {
         new Vector3Int(0, 0, 0),
         new Vector3Int(1, 0, 0),
@@ -187,7 +225,7 @@ public class GridGenerator : MonoBehaviour
     };
 
     //Triangle table to see what mesh needs to be created
-    static readonly int[,] triangleTable = new int[,]
+    private int[,] triangleTable = new int[,]
     {
         {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
         {0, 8, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
