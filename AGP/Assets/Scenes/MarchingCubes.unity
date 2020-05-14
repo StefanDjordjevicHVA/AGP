@@ -244,6 +244,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4f65cd1a774302a48a132928398084c3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  smoothTerrain: 1
 --- !u!4 &777848508
 Transform:
   m_ObjectHideFlags: 0

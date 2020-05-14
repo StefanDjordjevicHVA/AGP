@@ -5,6 +5,8 @@ using UnityEngine;
 [RequireComponent(typeof(MeshFilter))]
 public class GridGenerator : MonoBehaviour
 {
+    public bool smoothTerrain;
+
     List<Vector3> vertices = new List<Vector3>();
     List<int> triangles = new List<int>();
 
@@ -39,19 +41,8 @@ public class GridGenerator : MonoBehaviour
                 for (int z = 0; z < width + 1; z++)
                 {
                     float thisHeight = (float)height * Mathf.PerlinNoise((float)x / 16f * 1.5f + 0.001f, (float)z / 16f * 1.5f + 0.001f);
-
-                    float point = 0;
                     
-                    if (y <= thisHeight - 0.5f) //if this, point is well in the ground
-                        point = 0f;
-                    else if (y > thisHeight + 0.5f) //if this, point is well in the sky
-                        point = 1f;
-                    else if (y > thisHeight)
-                        point = (float)y - thisHeight;
-                    else
-                        point = thisHeight - (float)y;
-
-                    terrainMap[x, y, z] = point; 
+                    terrainMap[x, y, z] = (float)y - thisHeight; 
                 }
             }
         }
@@ -59,23 +50,15 @@ public class GridGenerator : MonoBehaviour
 
     void CreateMeshData()
     {
+        ClearMeshData();
+
         for (int x = 0; x < width; x++)
         {
             for (int y = 0; y < height; y++)
             {
                 for (int z = 0; z < width; z++)
                 {
-                    //create a new cube
-                    float[] cube = new float[8];
-
-                    //Cube has 8 corners
-                    for (int i = 0; i < 8; i++)
-                    {
-                        Vector3Int corner = new Vector3Int(x,y,z) + cornerTable[i];
-                        cube[i] = terrainMap[corner.x, corner.y, corner.z];
-                    }
-
-                    MarchCube(new Vector3(x, y, z), cube);
+                    MarchCube(new Vector3Int(x, y, z));
                 }
             }
         }
@@ -96,8 +79,22 @@ public class GridGenerator : MonoBehaviour
         return configurationIndex;
     }
 
-    void MarchCube(Vector3 position, float[] cube)
+    float SampleTerrain (Vector3Int point)
     {
+        return terrainMap[point.x, point.y, point.z];
+    }
+
+    void MarchCube(Vector3Int position)
+    {
+        //create a new cube
+        float[] cube = new float[8];
+
+        //Cube has 8 corners
+        for (int i = 0; i < 8; i++)
+        {
+            cube[i] = SampleTerrain(position + cornerTable[i]);
+        }
+
         int configIndex = GetCubeConfiguration(cube);
 
         if (configIndex == 0 || configIndex == 255)
@@ -118,11 +115,34 @@ public class GridGenerator : MonoBehaviour
                 if (indice == -1)
                     return;
 
-                Vector3 v1 = position + edgeTable[indice, 0];
-                Vector3 v2 = position + edgeTable[indice, 1];
+                Vector3 v1 = position + cornerTable[edgeIndexes[indice, 0]];
+                Vector3 v2 = position + cornerTable[edgeIndexes[indice, 1]];
 
-                //Set vertex position for triangle
-                Vector3 vPos = (v1 + v2) * 0.5f;
+                Vector3 vPos;
+
+                if (smoothTerrain)
+                {
+                    // Get terrain values at either end of our current edge from the cube array created.
+                    float vert1Sample = cube[edgeIndexes[indice, 0]];
+                    float vert2Sample = cube[edgeIndexes[indice, 1]];
+
+                    //Compute difference in terrain values
+                    float difference = vert2Sample - vert1Sample;
+
+                    //If difference is 0, terrain passes through middle.
+                    if (difference == 0)
+                        difference = terrainSurface;
+                    else
+                        difference = (terrainSurface - vert1Sample) / difference;
+
+                    // Calculate the point aling the edge for the vertex
+                    vPos = v1 + ((v2 - v1) * difference);
+
+                } else
+                {
+                    //Set vertex position for triangle
+                    vPos = (v1 + v2) * 0.5f;
+                }
                 
                 //Add vertex pos and triangle to Lists
                 vertices.Add(vPos);
@@ -161,21 +181,9 @@ public class GridGenerator : MonoBehaviour
     };
 
     // all the edges off the cube
-    static readonly Vector3[,] edgeTable = new Vector3[12, 2] {
-
-        { new Vector3(0.0f, 0.0f, 0.0f), new Vector3(1.0f, 0.0f, 0.0f) },
-        { new Vector3(1.0f, 0.0f, 0.0f), new Vector3(1.0f, 1.0f, 0.0f) },
-        { new Vector3(0.0f, 1.0f, 0.0f), new Vector3(1.0f, 1.0f, 0.0f) },
-        { new Vector3(0.0f, 0.0f, 0.0f), new Vector3(0.0f, 1.0f, 0.0f) },
-        { new Vector3(0.0f, 0.0f, 1.0f), new Vector3(1.0f, 0.0f, 1.0f) },
-        { new Vector3(1.0f, 0.0f, 1.0f), new Vector3(1.0f, 1.0f, 1.0f) },
-        { new Vector3(0.0f, 1.0f, 1.0f), new Vector3(1.0f, 1.0f, 1.0f) },
-        { new Vector3(0.0f, 0.0f, 1.0f), new Vector3(0.0f, 1.0f, 1.0f) },
-        { new Vector3(0.0f, 0.0f, 0.0f), new Vector3(0.0f, 0.0f, 1.0f) },
-        { new Vector3(1.0f, 0.0f, 0.0f), new Vector3(1.0f, 0.0f, 1.0f) },
-        { new Vector3(1.0f, 1.0f, 0.0f), new Vector3(1.0f, 1.0f, 1.0f) },
-        { new Vector3(0.0f, 1.0f, 0.0f), new Vector3(0.0f, 1.0f, 1.0f) }
-
+    int[,] edgeIndexes = new int[12, 2] 
+    {
+        {0, 1}, {1, 2}, {3, 2}, {0, 3}, {4, 5}, {5, 6}, {7, 6}, {4, 7}, {0, 4}, {1, 5}, {2, 6}, {3, 7}
     };
 
     //Triangle table to see what mesh needs to be created
